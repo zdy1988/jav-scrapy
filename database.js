@@ -64,3 +64,5 @@ function find_retry_list (callback) {
         }
     }
 }
+
+exports.find_retry_list = find_retry_list
