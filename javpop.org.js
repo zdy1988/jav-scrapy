@@ -33,7 +33,7 @@ exports.get_item_page_data = function ($, meta) {
     // ∑‚√Ê
     meta.img = $(p0[0]).attr("src")
     var title = $(p0[0]).attr("title")
-    meta.title = title.replace(title.split(" ")[0], "").substr(1)
+    meta.title = typeof (title) == "string" ? title.replace(title.split(" ")[0], "").substr(1) : "";
     meta.date = $("<div>" + p0[1] + "</div>").text().split(' ®C ')[1]
     meta.company = $("<div>" + p0[2] + "</div>").text().split(' ®C ')[1]
     meta.actress = $("<div>" + p0[4] + "</div>").text().split(' ®C ')[1]
@@ -58,4 +58,14 @@ exports.get_item_page_snapshots = function ($) {
     });
 
     return snapshots
+}
+
+exports.get_valid_img_url(url) {
+    if (typeof (url) == "string" && url.indexOf("http") == -1) {
+        url = "http:" + url
+    }
+    if (url == null || url == undefined) {
+        url = "https://ss1.bdstatic.com/70cFuXSh_Q1YnxGkpoWK1HF6hhy/it/u=3726629744,650620009&fm=26&gp=0.jpg"
+    }
+    return url
 }

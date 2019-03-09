@@ -13,14 +13,13 @@ var database = require('./database.js')
 
 const version = require('./package.json').version;
 
-var currentPageHtml = null;
-
 program
     .version(version)
     .usage('[options]')
-    .option('-r, --retry', '是否进入重试下载失败连接')
+    .option('-rf, --retryfail', '是否进入重试下载失败连接')
     .option('-p, --parallel <num>', '设置抓取并发连接数，默认值：3', 3)
     .option('-i, --index <num>', '设置起始页数，默认值：1', 1)
+    .option('-r, --retry <num>', '设置重试次数，默认值：5', 5)
     .option('-t, --timeout <num>', '自定义连接超时时间(毫秒)。默认值：30000毫秒')
     .option('-l, --limit <num>', '设置抓取影片的数量上限，0为抓取全部影片。默认值：0', 0)
     .option('-o, --output <file_path>', '设置磁链和封面抓取结果的保存位置，默认为当前用户的主目录下的 magnets 文件夹', website.output)
@@ -34,28 +33,22 @@ var parallel = parseInt(program.parallel);
 var timeout = parseInt(program.timeout) || 30000;
 var proxy = process.env.http_proxy || program.proxy;
 var pageIndex = parseInt(program.index);
-
-request = request.defaults({
-    timeout: timeout
-});
-
-if (proxy) {
-    request = request.defaults({
-        'proxy': proxy
-    });
-}
-
+var retryTimes = parseInt(program.retry)
 var count = parseInt(program.limit);
 var hasLimit = (count !== 0), targetFound = false;
 var output = program.output.replace(/['"]/g, '');
 
+request = request.defaults({ timeout: timeout });
+request = proxy ? request.defaults({ 'proxy': proxy }) : request;
+
+mkdirp.sync(output);
+
 console.log('========== 获取资源站点：%s =========='.green.bold, website.url);
-console.log('并行连接数：'.green, parallel.toString().green.bold, '      ',
-    '连接超时设置：'.green, (timeout / 1000.0).toString().green.bold, '秒'.green);
+console.log('并行连接数：'.green, parallel.toString().green.bold, '      ', '连接超时设置：'.green, (timeout / 1000.0).toString().green.bold, '秒'.green);
 console.log('磁链保存位置: '.green, output.green.bold);
 console.log('代理服务器: '.green, (proxy ? proxy : '无').green.bold);
 
-mkdirp.sync(output);
+var currentPageHtml = null;
 
 /****************************
  *****************************
@@ -64,8 +57,8 @@ mkdirp.sync(output);
  ****************************/
 
 function main() {
-    if (program.retry) {
-        retryStart();
+    if (program.retryfail) {
+        retryFailStart();
     } else {
         loopStart();
     }
@@ -86,47 +79,48 @@ function loopStart() {
                     return callback(null);
                 });
         },
-        // page not exits or finished parsing
-        function (err) {
-            if (err) {
-                console.log('抓取过程终止：%s', err.message);
-                return process.exit(1);
-            }
-            if (hasLimit && (count < 1)) {
-                console.log('已尝试抓取%s部影片，本次抓取完毕'.green.bold, program.limit);
-            } else {
-                console.log('抓取完毕'.green.bold);
-            }
-            return process.exit(0); // 不等待未完成的异步请求，直接结束进程
-        }
+        handleLoopError
     );
 }
 
-function retryStart() {
+function retryFailStart() {
     async.during(
         function (callback) {
+            return callback(null, true);
+        },
+        function (callback) {
             async.waterfall(
-                [getRetryLinks, getItems],
+                [getFailLinks, getItems],
                 function (err) {
                     pageIndex++;
                     if (err) return callback(err);
                     return callback(null);
                 });
         },
-        // page not exits or finished parsing
-        function (err) {
-            if (err) {
-                console.log('抓取过程终止：%s', err.message);
-                return process.exit(1);
-            }
-            if (hasLimit && (count < 1)) {
-                console.log('已尝试抓取%s部影片，本次抓取完毕'.green.bold, program.limit);
-            } else {
-                console.log('抓取完毕'.green.bold);
-            }
-            return process.exit(0); // 不等待未完成的异步请求，直接结束进程
-        }
+        handleLoopError
     );
+}
+
+// page not exits or finished parsing
+function handleLoopError(err) {
+    if (err) {
+        if (typeof (err.message) == "string" && err.message.toLowerCase().indexOf("timeout") != -1) {
+            console.log('抓取过程超过重试次数，等待 60 秒后再次重试');
+            setTimeout(function () {
+                console.log('已经等待60秒，准备开始...')
+                main()
+            }, 60000)
+        } else {
+            console.log('抓取过程终止：%s', err.message);
+            return process.exit(1);
+        }
+    }
+    if (hasLimit && (count < 1)) {
+        console.log('已尝试抓取%s部影片，本次抓取完毕'.green.bold, program.limit);
+    } else {
+        console.log('抓取完毕'.green.bold);
+    }
+    return process.exit(0); // 不等待未完成的异步请求，直接结束进程
 }
 
 /****************************
@@ -151,32 +145,36 @@ function pageExist(callback) {
 
     let retryCount = 1;
 
-    async.retry({ times: 5, interval: 200 },
-        function (callback) {
-            request.get({ url: url }, function (err, res, body) {
-                if (err) {
-                    if (err.status === 404) {
-                        console.error('已抓取完所有页面, StatusCode:', err.status);
-                    } else {
-                        retryCount++;
-                        console.error('第%d页页面获取失败：%s'.red, pageIndex, err.message);
-                        console.error('...进行第%d次尝试...'.red, retryCount);
-                    }
-                    return callback(err);
-                }
-                currentPageHtml = body;
-                return callback(null, res);
-            });
-        },
-        function (err, res) {
+    async.retry({
+        times: retryTimes,
+        interval: function (count) {
+            retryCount = count;
+            return 500 * Math.pow(2, count);
+        }
+    }, function (callback) {
+        request.get({ url: url }, function (err, res, body) {
             if (err) {
                 if (err.status === 404) {
-                    return callback(null, false);
+                    console.error('已抓取完所有页面, StatusCode:', err.status);
+                } else {
+                    console.error('第%d页页面获取失败：%s'.red, pageIndex, err.message);
+                    console.error('...进行第%d次尝试...'.red, retryCount);
                 }
                 return callback(err);
             }
-            return callback(null, res.statusCode == 200);
+
+            currentPageHtml = body;
+            return callback(null, res);
         });
+    }, function (err, res) {
+        if (err) {
+            if (err.status === 404) {
+                return callback(null, false);
+            }
+            return callback(err, false);
+        }
+        return callback(null, res.statusCode == 200);
+    });
 }
 
 function parseLinks(next) {
@@ -295,7 +293,7 @@ function getSnapshot(meta, snahpshotLink) {
         if (err) {
             var snapshotFileStream = fs.createWriteStream(fileFullPath + '.part');
             var finished = false;
-            request.get(snahpshotLink)
+            request.get(website.get_valid_img_url(snahpshotLink))
                 .on('end', function () {
                     if (!finished) {
                         fs.renameSync(fileFullPath + '.part', fileFullPath);
@@ -327,7 +325,7 @@ function getItemCover(meta, done) {
         if (err) {
             var coverFileStream = fs.createWriteStream(fileFullPath + '.part');
             var finished = false;
-            request.get(meta.img)
+            request.get(website.get_valid_img_url(meta.img))
                 .on('end', function () {
                     if (!finished) {
                         fs.renameSync(fileFullPath + '.part', fileFullPath);
@@ -351,8 +349,8 @@ function getItemCover(meta, done) {
     });
 }
 
-function getRetryLinks(next) {
-    database.find_retry_list(function (data) {
+function getFailLinks(next) {
+    database.find_fail_list(function (data) {
         let links = [],
             fanhao = [];
 
@@ -366,4 +364,20 @@ function getRetryLinks(next) {
         console.log('正重新处理以下番号影片...\n'.green + fanhao.toString().yellow);
         next(null, links)
     })
+}
+
+function beep() {
+    var i = 0;
+
+    function b() {
+        setTimeout(function () {
+            i++
+            process.stdout.write('\x07')
+            if (i < 10) {
+                b()
+            }
+        }, 500)
+    }
+
+    b()
 }

@@ -50,3 +50,10 @@ exports.get_item_page_snapshots = function ($) {
     });
     return snapshots
 }
+
+exports.get_valid_img_url(url) {
+    if (url == null || url == undefined) {
+        url = "https://ss1.bdstatic.com/70cFuXSh_Q1YnxGkpoWK1HF6hhy/it/u=3726629744,650620009&fm=26&gp=0.jpg"
+    }
+    return url
+}

@@ -49,10 +49,10 @@ exports.save = save
 
 var findsql2 = "SELECT * FROM moive WHERE  Title IS NULL AND Error IS NOT NULL";
 
-function find_retry_list (callback) {
+function find_fail_list (callback) {
     pool.getConnection(function (err, connection) {
         if (err) {
-            console.error(err)
+            console.error(err);
         }
 
         connection.query(findsql2, function (err, result) {
@@ -60,9 +60,9 @@ function find_retry_list (callback) {
                 console.log('[REREY FIND ERROR] - ', err.message);
             }
 
-            callback(result)
+            callback(result);
         }
     }
 }
 
-exports.find_retry_list = find_retry_list
+exports.find_fail_list = find_fail_list
