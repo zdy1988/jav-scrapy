@@ -29,17 +29,22 @@ exports.get_fanhao_from_link = get_fanhao_from_link
 exports.get_item_page_data = function ($, meta) {
     var p = $('.entry-content > p')
 
-    var p0 = $(p[0]).html().split('<br>')
-    // 猾醱
-    meta.img = $(p0[0]).attr("src")
-    var title = $(p0[0]).attr("title")
-    meta.title = typeof (title) == "string" ? title.replace(title.split(" ")[0], "").substr(1) : "";
-    meta.date = $("<div>" + p0[1] + "</div>").text().split(' 每 ')[1]
-    meta.company = $("<div>" + p0[2] + "</div>").text().split(' 每 ')[1]
-    meta.actress = $("<div>" + p0[4] + "</div>").text().split(' 每 ')[1]
-    meta.duration = $("<div>" + p0[5] + "</div>").text().split(' 每 ')[1]
+    if (p[0] != undefined && $(p[0]).html() != undefined) {
+        var p0 = $(p[0]).html().split('<br>')
 
-    meta.description = $(p[1]).text()
+        meta.img = $(p0[0]).attr("src")
+        var title = $(p0[0]).attr("title")
+        meta.title = typeof (title) == "string" ? title.replace(title.split(" ")[0], "").substr(1) : "";
+        meta.date = $("<div>" + p0[1] + "</div>").text().split(' 每 ')[1]
+        meta.company = $("<div>" + p0[2] + "</div>").text().split(' 每 ')[1]
+
+        meta.actress = $("<div>" + p0[4] + "</div>").text().split(' 每 ')[1]
+        meta.duration = $("<div>" + p0[5] + "</div>").text().split(' 每 ')[1]
+    }
+
+    if (p[1] != undefined) {
+        meta.description = $(p[1]).text()
+    }
 
     var tags = []
     $("p.tags > a").each(function (i, e) {
