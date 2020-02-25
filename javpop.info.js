@@ -28,7 +28,7 @@ exports.get_fanhao_from_link = get_fanhao_from_link
 exports.get_item_page_data = function ($, meta) {
     var name = $(".box-b > h1").text()
 
-    //·âÃæ
+    //ï¿½ï¿½ï¿½ï¿½
     meta.img = $(".poster > img").attr("src")
     meta.title = name.split(" ")[1];
 

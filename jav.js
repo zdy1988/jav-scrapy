@@ -199,9 +199,9 @@ function parseLinks(next) {
     }
 
     function link_fanhao_handler(i, e) {
-        var l = website.get_list_item_link($, e)
-        links.push(l)
-        fanhao.push(l.fanhao)
+        var item = website.get_list_item_link($, e)
+        links.push(item)
+        fanhao.push(item.fanhao)
     }
 
     console.log('正处理以下番号影片...\n'.green + fanhao.toString().yellow);
@@ -243,7 +243,8 @@ function getItemPage(link, index, callback) {
         request
             .get(link.url, function (err, res, body) {
                 let meta = {}
-
+                
+                meta.id = link.id
                 meta.url = link.url
                 meta.fanhao = fanhao
 
