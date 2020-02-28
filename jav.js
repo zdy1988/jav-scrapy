@@ -35,11 +35,16 @@ var proxy = process.env.http_proxy || program.proxy;
 var pageIndex = parseInt(program.index);
 var retryTimes = parseInt(program.retry)
 var count = parseInt(program.limit);
-var hasLimit = (count !== 0), targetFound = false;
+var hasLimit = (count !== 0),
+    targetFound = false;
 var output = program.output.replace(/['"]/g, '');
 
-request = request.defaults({ timeout: timeout });
-request = proxy ? request.defaults({ 'proxy': proxy }) : request;
+request = request.defaults({
+    timeout: timeout
+});
+request = proxy ? request.defaults({
+    'proxy': proxy
+}) : request;
 
 mkdirp.sync(output);
 
@@ -110,6 +115,7 @@ function handleLoopError(err) {
                 console.log('已经等待60秒，准备开始...')
                 main()
             }, 60000)
+            return
         } else {
             console.log('抓取过程终止：%s', err.message);
             return process.exit(1);
@@ -152,7 +158,9 @@ function pageExist(callback) {
             return 500 * Math.pow(2, count);
         }
     }, function (callback) {
-        request.get({ url: url }, function (err, res, body) {
+        request.get({
+            url: url
+        }, function (err, res, body) {
             if (err) {
                 if (err.status === 404) {
                     console.error('已抓取完所有页面, StatusCode:', err.status);
@@ -243,7 +251,7 @@ function getItemPage(link, index, callback) {
         request
             .get(link.url, function (err, res, body) {
                 let meta = {}
-                
+
                 meta.id = link.id
                 meta.url = link.url
                 meta.fanhao = fanhao
@@ -358,7 +366,10 @@ function getFailLinks(next) {
         if (data.length > 0) {
             data.each(function (i, d) {
                 fanhao.push(d.MoiveID)
-                links.push({ url: d.Url, fanhao: d.MoiveID })
+                links.push({
+                    url: d.Url,
+                    fanhao: d.MoiveID
+                })
             })
         }
 
