@@ -10,15 +10,19 @@ exports.get_list_items = function ($) {
 }
 
 exports.get_list_item_link = function ($, elm) {
-    var $a  = $(elm).find(".cdetail a")
+    var $a = $(elm).find(".cdetail a")
 
-    let id = $(elm).attr("id").replace("post-","")
+    let id = $(elm).attr("id").replace("post-", "")
 
     let link = $a.attr('href')
 
     let fanhao = $a.text().substring(1, $a.text().indexOf("]")).toUpperCase()
 
-    return { id:id, url: link, fanhao: fanhao };
+    return {
+        id: id,
+        url: link,
+        fanhao: fanhao
+    };
 }
 
 exports.get_item_page_data = function ($, meta) {
@@ -57,16 +61,21 @@ exports.get_item_page_snapshots = function ($) {
     $(".screen_div noscript").each(function (i, e) {
         snapshots.push($(this.children[0].data).attr("src"));
     });
-    
+
     return snapshots
 }
 
-exports.get_valid_img_url = function(url) {
-    if (typeof (url) == "string" && url.indexOf("http") == -1) {
+var non_img = "https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1582573944993&di=dc4a5c97004ae089b2024db907ecb8eb&imgtype=0&src=http%3A%2F%2Fwww.bjcapitaloutlet.com%2FContent%2Fimg%2Ferror.jpg";
+
+exports.get_valid_img_url = function (url) {
+    if (typeof (url) == "string" && url.trim() == '') {
+        url = non_img
+    } else if (typeof (url) == "string" && url.indexOf("data:image") != -1) {
+        url = non_img
+    } else if (typeof (url) == "string" && url.indexOf("http") == -1) {
         url = "http:" + url
-    }
-    if (url == null || url == undefined) {
-        url = "https://timgsa.baidu.com/timg?image&quality=80&size=b9999_10000&sec=1582573944993&di=dc4a5c97004ae089b2024db907ecb8eb&imgtype=0&src=http%3A%2F%2Fwww.bjcapitaloutlet.com%2FContent%2Fimg%2Ferror.jpg";
+    } else if (url == null || url == undefined) {
+        url = non_img
     }
     return url
 }

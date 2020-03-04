@@ -16,7 +16,7 @@ const version = require('./package.json').version;
 program
     .version(version)
     .usage('[options]')
-    .option('-rf, --retryfail', '是否进入重试下载失败连接')
+    .option('-m, --mode <string>', '设置抓取模式', 'normal')
     .option('-p, --parallel <num>', '设置抓取并发连接数，默认值：3', 3)
     .option('-i, --index <num>', '设置起始页数，默认值：1', 1)
     .option('-r, --retry <num>', '设置重试次数，默认值：5', 5)
@@ -29,19 +29,21 @@ program
     .option('-a, --allmag', '是否抓取影片的所有磁链(默认只抓取文件体积最大的磁链)')
     .parse(process.argv);
 
+var mode = program.mode
 var parallel = parseInt(program.parallel);
 var timeout = parseInt(program.timeout) || 30000;
 var proxy = process.env.http_proxy || program.proxy;
-var pageIndex = parseInt(program.index);
-var retryTimes = parseInt(program.retry)
+var page_index = parseInt(program.index);
+var retry_times = parseInt(program.retry)
 var count = parseInt(program.limit);
-var hasLimit = (count !== 0),
+var has_limit = (count !== 0),
     targetFound = false;
 var output = program.output.replace(/['"]/g, '');
 
 request = request.defaults({
     timeout: timeout
 });
+
 request = proxy ? request.defaults({
     'proxy': proxy
 }) : request;
@@ -53,61 +55,58 @@ console.log('并行连接数：'.green, parallel.toString().green.bold, '      '
 console.log('磁链保存位置: '.green, output.green.bold);
 console.log('代理服务器: '.green, (proxy ? proxy : '无').green.bold);
 
-var currentPageHtml = null;
+// MAIN LOOP START ! 
 
-/****************************
- *****************************
- **** MAIN LOOP START ! ******
- ****************************
- ****************************/
+var current_page_html = null;
 
 function main() {
-    if (program.retryfail) {
-        retryFailStart();
+    if (mode == 'normal') {
+        loop_start();
+
     } else {
-        loopStart();
+        loop_fail_start();
     }
 }
 
 main();
 
-function loopStart() {
+function loop_start() {
     async.during(
-        pageExist,
+        page_exist,
         // when page exist
         function (callback) {
             async.waterfall(
-                [parseLinks, getItems],
+                [parse_links, get_items],
                 function (err) {
-                    pageIndex++;
+                    page_index++;
                     if (err) return callback(err);
                     return callback(null);
                 });
         },
-        handleLoopError
+        handle_loop_error
     );
 }
 
-function retryFailStart() {
+function loop_fail_start() {
+    console.log("========== 开始重试失败链接 ==========".green)
     async.during(
         function (callback) {
             return callback(null, true);
         },
         function (callback) {
             async.waterfall(
-                [getFailLinks, getItems],
+                [get_fail_links, get_items],
                 function (err) {
-                    pageIndex++;
+                    page_index++;
                     if (err) return callback(err);
                     return callback(null);
                 });
         },
-        handleLoopError
+        handle_loop_error
     );
 }
 
-// page not exits or finished parsing
-function handleLoopError(err) {
+function handle_loop_error(err) {
     if (err) {
         if (typeof (err.message) == "string" && err.message.toLowerCase().indexOf("timeout") != -1) {
             console.log('抓取过程超过重试次数，等待 60 秒后再次重试');
@@ -115,46 +114,40 @@ function handleLoopError(err) {
                 console.log('已经等待60秒，准备开始...')
                 main()
             }, 60000)
-            return
         } else {
             console.log('抓取过程终止：%s', err.message);
             return process.exit(1);
         }
-    }
-    if (hasLimit && (count < 1)) {
-        console.log('已尝试抓取%s部影片，本次抓取完毕'.green.bold, program.limit);
     } else {
-        console.log('抓取完毕'.green.bold);
+        if (has_limit && (count < 1)) {
+            console.log('已尝试抓取%s部影片，本次抓取完毕'.green.bold, program.limit);
+        } else {
+            console.log('抓取完毕'.green.bold);
+        }
+        return process.exit(0); // 不等待未完成的异步请求，直接结束进程
     }
-    return process.exit(0); // 不等待未完成的异步请求，直接结束进程
 }
 
-/****************************
- *****************************
- **** MAIN LOOP END ! ******
- ****************************
- ****************************/
-
-function pageExist(callback) {
-    if (hasLimit && (count < 1) || targetFound) {
+function page_exist(callback) {
+    if (has_limit && (count < 1) || targetFound) {
         return callback();
     }
 
-    var url = website.url + (pageIndex === 1 ? '' : ('page/' + pageIndex + '/'));
+    var url = website.url + (page_index === 1 ? '' : ('page/' + page_index + '/'));
 
     if (program.search) {
-        url = website.url + (pageIndex === 1 ? '' : ('page/' + pageIndex + '/')) + '?s=' + encodeURI(program.search);
+        url = website.url + (page_index === 1 ? '' : ('page/' + page_index + '/')) + '?s=' + encodeURI(program.search);
     } else {
         // 只在没有指定搜索条件时显示
-        console.log('获取第%d页中的影片链接 ( %s )...'.green, pageIndex, url);
+        console.log('获取第%d页中的影片链接 ( %s )...'.green, page_index, url);
     }
 
-    let retryCount = 1;
+    let retry_count = 1;
 
     async.retry({
-        times: retryTimes,
+        times: retry_times,
         interval: function (count) {
-            retryCount = count;
+            retry_count = count;
             return 500 * Math.pow(2, count);
         }
     }, function (callback) {
@@ -165,13 +158,13 @@ function pageExist(callback) {
                 if (err.status === 404) {
                     console.error('已抓取完所有页面, StatusCode:', err.status);
                 } else {
-                    console.error('第%d页页面获取失败：%s'.red, pageIndex, err.message);
-                    console.error('...进行第%d次尝试...'.red, retryCount);
+                    console.error('第%d页页面获取失败：%s'.red, page_index, err.message);
+                    console.error('...进行第%d次尝试...'.red, retry_count);
                 }
                 return callback(err);
             }
 
-            currentPageHtml = body;
+            current_page_html = body;
             return callback(null, res);
         });
     }, function (err, res) {
@@ -185,23 +178,24 @@ function pageExist(callback) {
     });
 }
 
-function parseLinks(next) {
-    let $ = cheerio.load(currentPageHtml);
+function parse_links(next) {
+    let $ = cheerio.load(current_page_html);
     let links = [],
         fanhao = [];
 
-    let listItems = website.get_list_items($)
-    let totalCountCurPage = listItems.length;
+    let list_items = website.get_list_items($)
+    let total_count_cur_page = list_items.length;
 
-    if (hasLimit) {
-        if (count > totalCountCurPage) {
-            listItems.each(link_fanhao_handler);
+    if (has_limit) {
+        if (count > total_count_cur_page) {
+            list_items.each(link_fanhao_handler);
         } else {
-            listItems.slice(0, count).each(link_fanhao_handler);
+            list_items.slice(0, count).each(link_fanhao_handler);
         }
     } else {
-        listItems.each(link_fanhao_handler);
+        list_items.each(link_fanhao_handler);
     }
+
     if (program.search && links.length == 1) {
         targetFound = true;
     }
@@ -216,11 +210,11 @@ function parseLinks(next) {
     next(null, links);
 }
 
-function getItems(links, next) {
+function get_items(links, next) {
     async.forEachOfLimit(
         links,
         parallel,
-        getItemPage,
+        get_item_page,
         function (err) {
             if (err) {
                 if (err.message === 'limit') {
@@ -228,18 +222,18 @@ function getItems(links, next) {
                 }
                 throw err;
             }
-            console.log('===== 第%d页处理完毕 ====='.green, pageIndex);
+            console.log('===== 第%d页处理完毕 ====='.green, page_index);
             console.log();
             return next();
         });
 }
 
-function getItemPage(link, index, callback) {
+function get_item_page(link, index, callback) {
     let fanhao = link.fanhao
 
     let coverFilePath = path.join(output, fanhao + '.jpg');
     let magnetFilePath = path.join(output, fanhao + '.txt');
-    if (hasLimit) {
+    if (has_limit) {
         count--;
     }
     try {
@@ -275,23 +269,23 @@ function getItemPage(link, index, callback) {
                 database.save(meta)
 
                 // 封面
-                getItemCover(meta, callback);
+                get_item_cover(meta, callback);
 
                 // 所有截图link
                 var snapshots = website.get_item_page_snapshots($)
 
-                getSnapshots(meta, snapshots);
+                get_snapshots(meta, snapshots);
             });
     }
 }
 
-function getSnapshots(meta, snapshots) {
+function get_snapshots(meta, snapshots) {
     for (var i = 0; i < snapshots.length; i++) {
-        getSnapshot(meta, snapshots[i]);
+        get_snapshot(meta, snapshots[i]);
     }
 }
 
-function getSnapshot(meta, snahpshotLink) {
+function get_snapshot(meta, snahpshotLink) {
     let fanhao = meta.fanhao
     let itemOutput = output + '/' + fanhao;
     mkdirp.sync(itemOutput);
@@ -323,7 +317,7 @@ function getSnapshot(meta, snahpshotLink) {
     });
 }
 
-function getItemCover(meta, done) {
+function get_item_cover(meta, done) {
     var fanhao = meta.fanhao
     var filename = fanhao + '.jpg';
     //let itemOutput = output + '/' + fanhao;
@@ -358,22 +352,22 @@ function getItemCover(meta, done) {
     });
 }
 
-function getFailLinks(next) {
-    database.find_fail_list(function (data) {
+function get_fail_links(next) {
+    database.find_fail_list(page_index, function (data) {
         let links = [],
             fanhao = [];
 
         if (data.length > 0) {
-            data.each(function (i, d) {
-                fanhao.push(d.MoiveID)
+            for (var i = 0; i < data.length; i++) {
+                fanhao.push(data[i].MovieID)
                 links.push({
-                    url: d.Url,
-                    fanhao: d.MoiveID
+                    url: data[i].Url,
+                    fanhao: data[i].MovieID
                 })
-            })
+            }
         }
 
-        console.log('正重新处理以下番号影片...\n'.green + fanhao.toString().yellow);
+        console.log('正处理以下番号影片...\n'.green + fanhao.toString().yellow);
         next(null, links)
     })
 }
