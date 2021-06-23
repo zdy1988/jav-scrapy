@@ -3,7 +3,7 @@ var path = require('path');
 
 exports.url = 'http://javpop.org/';
 
-exports.output = path.join('D:\\Magnets\\', 'javpop')
+exports.output = path.join('E:\\work\\Crawler\\', 'javpop')
 
 exports.get_list_items = function ($) {
     return $('#content article')
