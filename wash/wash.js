@@ -7,7 +7,7 @@ var async = require('async');
 var path = require('path');
 var fs = require('fs');
 
-var website = require('./javpop.org.js');
+var website = require('../www.javpop.org.js');
 
 // 创建数据库连接池
 var pool = mysql.createPool({
