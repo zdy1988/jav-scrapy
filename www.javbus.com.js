@@ -1,7 +1,7 @@
 //var userHome = require('user-home');
 var path = require('path');
 
-exports.url = 'https://javbus.com/';
+exports.url = 'https://www.javbus.com/';
 
 exports.output = path.join('E:\\work\\Crawler\\', 'javbus')
 

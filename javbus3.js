@@ -106,7 +106,7 @@ async.during(
 );
 
 function handleItem(item, index, callback) {
-  let url = "https://www.javbus.com/" + item.MovieID;
+  let url = website.url + item.MovieID;
 
   request.get(url, function (err, res, body) {
     if (err) {

@@ -10,7 +10,7 @@ var program = require("commander");
 var path = require("path");
 var fs = require("fs");
 
-var website = require("./javbus.com.js");
+var website = require("./www.javbus.com.js");
 
 const version = require("./package.json").version;
 
@@ -102,7 +102,7 @@ async.during(
 );
 
 function handleItem(item, index, callback) {
-  let url = "https://www.javbus.com/" + item.MovieID;
+  let url = website.url + item.MovieID;
 
   request.get(url, function (err, res, body) {
     if (err) {
